@@ -1,0 +1,275 @@
+const mongoClient = require("mongodb").MongoClient;
+var express = require('express');
+var router = express();
+
+mongoClient.connect("mongodb://omega.unasec.info:27017", function(err, client)
+{
+            if(!err) 
+           {
+                console.log("We are connect to mongodb...");
+                var db = client.db('amazon');
+                var collection = db.collection('reviews');
+
+                router.get('/review/:reviewid', function(req, res)
+                {
+                    let review_id = req.params.reviewid;
+                    collection.aggregate([
+                        {
+                            $match: {"review.id" : review_id}
+                        }
+                    ]).toArray(function(err,docs){
+                        if(!err)
+                        {
+                            for(var i = 0; i < docs.length; i++)
+                            {
+                                res.send(docs);
+                            }
+                        }
+                        else
+                        {
+                            console.log(err);
+                            res.send(err);
+                        }
+                    });
+                    
+                });
+               
+               
+                    router.get('/review/random/:n/:stars', function(req, res)
+                    {
+                        console.log("We are connect to mongodb...");
+                        let stars = req.params.stars;
+                        collection.aggregate([
+                        {
+                            $match: {"review.star_rating": stars}
+                        }
+                    ]).toArray(function(err,docs){
+                        if(!err)
+                        {
+                            for(var i = 0; i < docs.length; i++)
+                            {
+                                res.send(docs);
+                            }
+
+                            console.log(docs);
+                        }
+                        else
+                        {
+                            console.log(err);
+                            res.send(err);
+                        }
+                    });
+                });
+                
+                
+                router.get('/review/:n/:from_date/:to_date', function(req, res)
+                {
+                    let fromdate = req.params.from_date;
+                    let todate = req.params.to_date; 
+                    
+                    let from = new Date(fromdate);
+                    let to = new Date(todate);
+                    
+                    collection.aggregate([
+                        {
+                            $match: 
+                            {
+                                $and:
+                                        [ 
+                                            {"review.date": {$gt: from}},
+                                            {"review.date": {$lt: to}}
+                                        ]
+                            }
+                        }
+                    ]).toArray(function(err,docs){
+                        if(!err)
+                        {
+                            for(var i = 0; i < docs.length; i++)
+                            {
+                                res.send(docs);
+                            }
+                        }
+                        else
+                        {
+                            console.log(err);
+                            res.send(err);
+                        }
+                    });
+                    
+                });
+                
+                router.post('/review', function(req, res)
+                {
+                    
+                    let newDoc = {
+                                    "day" : 8,
+                                    "marketplace" : "US",
+                                    "customer_id" : "20813565",
+                                    "vine" : "N",
+                                    "verified_purchase" : "Y",
+                                    "review" : {
+                                            "id" : "ABCDJJFKJFKJ",
+                                            "headline" : "Five Stars",
+                                            "body" : "Girls love my bandana",
+                                            "star_rating" : 5,
+                                            "date" : "ISODate(\"2015-04-08T00:00:00Z\")"
+                                    },
+                                    "product" : {
+                                             "id" : "A01BUX562IS",
+                                            "parent" : "2142545",
+                                            "title" : "Black Bandana",
+                                            "category" : "Apparel"
+                                    },
+                                    "votes" : {
+                                            "helpful_votes" : 13,
+                                            "total_votes" : 12
+                                    }
+                            };
+                    collection.insertOne(newDoc, function(err, response){
+                        
+                        if(err){
+                            res.send(err);
+                            return;
+                        }
+                        else
+                            res.send(newDoc);
+                    });
+                });
+                
+                router.put('/review/:reviewid', function(req, res)
+                {
+                    let review_id = req.params.reviewid;
+                    collection.updateOne(
+                        {
+                           "review.id" : review_id
+                        },
+                        {
+                            $set:
+                            {
+                                "$star.rating" : 3
+                            }
+                        },
+                        function(err, res){
+                            if(err){
+                                res.send(err);
+                            }
+                        }
+                    );
+                });
+                
+                router.delete('/review/:reviewid', function(req, response)
+                {
+                    let review_id = req.params.reviewid;
+                    collection.deleteOne(
+                        {
+                          "review.id": review_id
+                        },
+                        function(err, res){
+                            if(err){
+                                response.send(err);
+                            }
+                        }
+                    );
+                });
+                
+                router.get('review/:from/:to', function(req, res)
+                {
+                    let fromdate = req.params.from_date;
+                    let todate = req.params.to_date; 
+                    
+                    let from = new Date(fromdate);
+                    let to = new Date(todate);
+                    
+                    collection.aggregate([
+                        {
+                            $match: 
+                            {
+                                $and:
+                                        [ 
+                                            {"review.date": {$gt: from}},
+                                            {"review.date": {$lt: to}}
+                                        ]
+                            }
+                        },    
+                            
+                        {
+                            $group:
+                            {
+                                $group: { _id : "review.star_rating",
+                                average : {$avg: "$votes.helpful_votes"}}
+                            }
+                        }
+                    ]).toArray(function(err,docs){
+                        if(!err)
+                        {
+                            for(var i = 0; i < docs.length; i++)
+                            {
+                                res.send(docs);
+                            }
+                            console.log(docs);
+                        }
+                        else
+                        {
+                            console.log(err);
+                            res.send(err);
+                        }
+                    });
+                    
+                });
+                
+                router.get('review/helpful/:prodid', function(req, res)
+                {
+                    let product_id = req.params.product.id;
+                    collection.aggregate([
+                        {
+                            $group: { _id : product_id,
+                            average : {$avg: "$votes.helpful_votes"}}
+                        }
+                    ]).toArray(function(err,docs){
+                        if(!err)
+                        {
+                            for(var i = 0; i < docs.length; i++)
+                            {
+                                res.send(docs);
+                            }
+                            console.log(docs);
+                        }
+                        else
+                        {
+                            console.log(err);
+                            res.send(err);
+                        }
+                    });
+                    
+                });
+                
+                router.get('review/info/:custid', function(req, res)
+                {
+                    let cust_id = req.params.customer_id;
+                    collection.aggregate([
+                        {
+                            $group: { _id : cust_id,
+                            average : {$avg: "$votes.helpful_votes"}}
+                        }
+                    ]).toArray(function(err,docs){
+                        if(!err)
+                        {
+                            for(var i = 0; i < docs.length; i++)
+                            {
+                                res.send(docs);
+                            }
+                            console.log(docs);
+                        }
+                        else
+                        {
+                            console.log(err);
+                            res.send(err);
+                        }
+                    });
+                });
+           }
+            
+            
+      
+}); // end mongo connect callback
+router.listen(8080);
